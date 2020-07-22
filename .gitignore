@@ -4,6 +4,7 @@
 profiles.clj
 pom.xml
 pom.xml.asc
+secrets.edn
 *.jar
 *.class
 /.lein-*
