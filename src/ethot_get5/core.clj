@@ -20,9 +20,10 @@
 (def map-pool (:map-pool env))
 (def report-timeout (:report-timeout env))
 
-(defn import-match
-  [tournament-id match-id]
-  )
+(defn add-teams
+  [tournament-id]
+  (doseq [team (toornament/participants tournament-id)]
+    (db/add-team team)))
 
 (defn run-stage
   "Continuously imports and exports all available games every 30 seconds."

@@ -1,0 +1,33 @@
+version: "3.7"
+
+services:
+  get5-web:
+    image: counterstrafe/get5-web:0.1.1
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      SQLALCHEMY_DATABASE_URI: '${SQLALCHEMY_DATABASE_URI}'
+      STEAM_API_KEY: '${STEAM_API_KEY}'
+      SECRET_KEY: '${SECRET_KEY}'
+      MAPLIST: '${MAPLIST}'
+      DEFAULT_MAPLIST: '${DEFAULT_MAPLIST}'
+      ADMIN_IDS: '${ADMIN_IDS}'
+      GET5_URL_OVERRIDE: '${GET5_URL_OVERRIDE}'
+
+  mysql:
+    image: mysql:5.7
+    restart: always
+    volumes:
+      - /opt/docker/get5-web/mysql:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    expose:
+      - "3306"
+    environment:
+      - MYSQL_DATABASE=get5-web
+      - MYSQL_USER=get5-web
+      - MYSQL_PASSWORD=${MYSQL_PASS}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASS}
+      - MYSQL_ROOT_HOST=%
+    command: mysqld --sql_mode="NO_ENGINE_SUBSTITUTION"

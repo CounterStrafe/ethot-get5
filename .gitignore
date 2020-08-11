@@ -1,6 +1,8 @@
 /target
 /classes
 /checkouts
+.DS_Store
+.env
 profiles.clj
 pom.xml
 pom.xml.asc
