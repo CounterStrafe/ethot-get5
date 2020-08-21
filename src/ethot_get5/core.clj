@@ -20,7 +20,7 @@
 (def map-pool (:map-pool env))
 (def report-timeout (:report-timeout env))
 
-(defn add-teams
+(defn sync-teams
   [tournament-id]
   (doseq [team (toornament/participants tournament-id)]
     (db/add-team team)))
