@@ -1,4 +1,4 @@
-(ns ethot.toornament
+(ns ethot_get5.toornament
   (:require [clojure.data.json :as json]
             [clojure.string :as str]
             [clj-http.client :as hclient]

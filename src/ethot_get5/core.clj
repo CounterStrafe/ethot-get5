@@ -1,12 +1,13 @@
-(ns ethot.core
+(ns ethot_get5.core
   (:require [discljord.connections :as dconn]
             [discljord.messaging :as dmess]
             [discljord.events :as devent]
             [clojure.core.async :as async]
             [clojure.string :as str]
             [config.core :refer [env]]
-            [ethot.db :as db]
-            [ethot.toornament :as toornament])
+            [libpython-clj.python :as py]
+            [ethot_get5.db :as db]
+            [ethot_get5.toornament :as toornament])
   (:gen-class))
 
 (def state (atom {}))
@@ -18,58 +19,41 @@
 (def game-server-password (:game-server-password env))
 (def import-blacklist (:import-blacklist env))
 (def map-pool (:map-pool env))
+(def python-executable (:python-executable env))
+(def python-library-path (:python-library-path env))
 (def report-timeout (:report-timeout env))
 
 (defn sync-teams
+  "Imports every team from the tournament."
   [tournament-id]
   (doseq [team (toornament/participants tournament-id)]
-    (db/add-team team)))
+    (db/import-team team)))
+
+(defn unimported-matches
+  "Returns the matches that can and have not been imported yet."
+  [tournament-id]
+  (filter #(and (not (db/match-imported? (get % "id")))
+                (not (db/match-delayed? (get % "id")))
+                (not (contains? import-blacklist (get % "id"))))
+          (toornament/importable-matches tournament-id)))
 
 (defn run-stage
   "Continuously imports and exports all available games every 30 seconds."
   [tournament-id stage-name]
   (async/go
+    (sync-teams)
     (let [stage-id (get (toornament/get-stage tournament-id stage-name) "id")]
       (swap! state assoc :tournament-id tournament-id)
       (loop []
         (println "Running")
         (doseq [match (unimported-matches tournament-id)]
           (let [match-id (get match "id")
-                ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-                ; Currently we only support single-game matches
-                game (first (toornament/games tournament-id match-id))
-                game-number (get game "number")
-                ebot-match-id (ebot/import-game tournament-id match-id game-number)
-                team1-id (get-in match ["opponents" 0 "participant" "id"])
-                team2-id (get-in match ["opponents" 1 "participant" "id"])
-                team1 (toornament/participant tournament-id team1-id)
-                team2 (toornament/participant tournament-id team2-id)
-                ; This code assumes there are more available servers than games
-                ; that can be played at one time. There is no logic for
-                ; prioritising games earlier in the bracket.
-                server-id (ebot/get-available-server)]
-            (ebot/set-match-password ebot-match-id game-server-password)
-            (ebot/assign-server server-id ebot-match-id)
-            (notify-discord tournament-id team1 team2 server-id)
-            (start-veto tournament-id match-id ebot-match-id server-id team1 team2)
-            (when (not (contains? (:games-awaiting-close @state) ebot-match-id))
-              (swap! state assoc-in [:games-awaiting-close ebot-match-id] (async/chan))
-              (cond
-                (not (db/in-reports-table? ebot-match-id))
-                (db/add-unreported ebot-match-id)
-
-                ;; we will reset the timer, since the game will
-                ;; still be exportable on through toornament state
-                (db/in-timer? ebot-match-id)
-                (db/set-unreported ebot-match-id)))))
-
-        ; exports here
-        (export-games @state tournament-id)
-        (async/<! (async/timeout 30000))
-        (if (or (not (:stage-running @state))
-                (toornament/stage-complete? tournament-id stage-id))
-          (println "Stopping")
-          (recur))))))
+                games (toornament/games tournament-id match-id)
+                ;[server-id plugin-version] (get-available-server)
+                ]
+            ;(db/import-match match games server-id plugin-version)
+            ; RCON send_to_server
+          ))))))
 
 (defmethod handle-event "!run-stage"
   [event-type {:keys [content channel-id]}]
@@ -85,6 +69,8 @@
 
 (defn -main
   [& args]
+  (py/initialize! :python-executable python-executable
+                  :library-path python-library-path)
   (let [event-ch (async/chan 100)
         connection-ch (dconn/connect-bot! discord-token event-ch)
         messaging-ch (dmess/start-connection! discord-token)

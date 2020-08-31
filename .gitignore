@@ -11,5 +11,6 @@ secrets.edn
 *.class
 /.lein-*
 /.nrepl-port
+.calva/
 .hgignore
 .hg/

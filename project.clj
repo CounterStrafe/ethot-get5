@@ -7,7 +7,11 @@
                  [org.clojure/data.json "1.0.0"]
                  [org.suskalo/discljord "0.2.5"]
                  [clj-http "3.10.0"]
+                 [clj-python/libpython-clj "1.45"]
                  [mysql/mysql-connector-java "8.0.19"]
                  [seancorfield/next.jdbc "1.0.409"]
                  [yogthos/config "1.1.7"]]
-  :repl-options {:init-ns ethot-get5.core})
+  ;; configuration will be read from the dev-config.edn file
+  :jvm-opts ["-Dconfig=secrets.edn"]
+  ;:repl-options {:init-ns ethot-get5.core}
+  )
