@@ -1,13 +1,20 @@
-(ns ethot_get5.core
+(ns ethot-get5.core
+  (:require [config.core :refer [env]]
+            [libpython-clj.python :as py]))
+
+(def python-executable (:python-executable env))
+(def python-library-path (:python-library-path env))
+(py/initialize! :python-executable python-executable
+                :library-path python-library-path)
+
+(ns ethot-get5.core
   (:require [discljord.connections :as dconn]
             [discljord.messaging :as dmess]
             [discljord.events :as devent]
             [clojure.core.async :as async]
             [clojure.string :as str]
-            [config.core :refer [env]]
-            [libpython-clj.python :as py]
-            [ethot_get5.db :as db]
-            [ethot_get5.toornament :as toornament])
+            [ethot-get5.db :as db]
+            [ethot-get5.toornament :as toornament])
   (:gen-class))
 
 (def state (atom {}))
@@ -19,8 +26,6 @@
 (def game-server-password (:game-server-password env))
 (def import-blacklist (:import-blacklist env))
 (def map-pool (:map-pool env))
-(def python-executable (:python-executable env))
-(def python-library-path (:python-library-path env))
 (def report-timeout (:report-timeout env))
 
 (defn sync-teams
@@ -55,6 +60,13 @@
             ; RCON send_to_server
           ))))))
 
+(defmulti handle-event
+  (fn [event-type event-data]
+    (when (and
+           (not (:bot (:author event-data)))
+           (= event-type :message-create))
+      (first (str/split (:content event-data) #" ")))))
+
 (defmethod handle-event "!run-stage"
   [event-type {:keys [content channel-id]}]
   (when (= channel-id discord-admin-channel-id)
@@ -69,8 +81,6 @@
 
 (defn -main
   [& args]
-  (py/initialize! :python-executable python-executable
-                  :library-path python-library-path)
   (let [event-ch (async/chan 100)
         connection-ch (dconn/connect-bot! discord-token event-ch)
         messaging-ch (dmess/start-connection! discord-token)

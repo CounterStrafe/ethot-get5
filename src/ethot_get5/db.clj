@@ -1,11 +1,13 @@
-(ns ethot_get5.db
-  (:require [config.core :refer [env]]
-            [libpython-clj.python :as py]
+(ns ethot-get5.db
+  (:require [clojure.string :as str]
+            [config.core :refer [env]]
+            [libpython-clj.python :refer [py. py.. py.-] :as py]
             [libpython-clj.require :refer [require-python]]
             [next.jdbc :as jdbc]
             [next.jdbc.result-set :as rs])
   (:gen-class))
 
+(require-python '[builtins :as python])
 (require-python 'pickle)
 
 (def db-host (:mysql-host env))
@@ -13,6 +15,7 @@
 (def db-password (:mysql-pass env))
 (def import-blacklist (:import-blacklist env))
 (def map-pool (:map-pool env))
+(def python-executable (:python-executable env))
 (def user-id (:get5-web-user-id env))
 
 (def ethot-ds (jdbc/get-datasource
@@ -31,7 +34,11 @@
 
 (defn pickle-steam-ids
   [steam-ids]
-  (pickle/dumps (py/->py-list steam-ids)))
+  (let [plist (py/->py-list steam-ids)
+        pbytes (pickle/dumps plist)
+        pbytes-len (python/len pbytes)
+        cljbytes (byte-array pbytes-len)]
+    (for [i (range pbytes-len)] (aset-byte cljbytes i (- (py. pbytes __getitem__ i) 128)))))
 
 (defn import-team
   [team]

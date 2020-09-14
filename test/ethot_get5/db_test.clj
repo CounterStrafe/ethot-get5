@@ -1,17 +1,40 @@
 (ns ethot_get5.db-test
-  (:require [clojure.test :refer :all]
-            [config.core :refer [env]]
-            [libpython-clj.python :as py]
-            [next.jdbc :as jdbc]
-            [next.jdbc.result-set :as rs]
-            [ethot_get5.db :refer :all]))
+  (:require [config.core :refer [env]]
+            [libpython-clj.python :refer [py. py.. py.-] :as py]))
 
 (def python-executable (:python-executable env))
 (def python-library-path (:python-library-path env))
 (py/initialize! :python-executable python-executable
                 :library-path python-library-path)
 
-(deftest team-test
+(ns ethot_get5.db-test
+  (:require [clojure.test :refer :all]
+            [libpython-clj.require :refer [require-python]]
+            [next.jdbc :as jdbc]
+            [next.jdbc.result-set :as rs]
+            [ethot-get5.db :refer :all]))
+
+(require-python '[builtins :as python])
+(require-python 'pickle)
+
+(defn unpickle-steam-ids
+  [cljbytes]
+  (let [pbytes (python/bytearray)
+        cljbytes-len (count cljbytes)]
+    (doseq [i (range cljbytes-len)]
+      (println cljbytes)
+      (println i)
+      (println (get cljbytes i))
+      (py. pbytes append (+ (get cljbytes i) 128))
+      (println pbytes))
+    (println (python/bytes pbytes))
+    (pickle/loads (python/bytes pbytes))))
+
+(deftest pickle-test
+  (testing "pickle"
+    (is (= (unpickle-steam-ids (pickle-steam-ids ["hi"])) ["hi"]))))
+
+(comment (deftest team-test
   (let [team {"id" "1234"
               "name" "Test Team"
               "custom_fields"
@@ -44,4 +67,4 @@
         (is (= (:name get5-team) (get team "name")))
         (is (= (:tag get5-team) (get-in team ["custom_fields" "tag"])))
         (is (= (:flag get5-team) (get-in team ["custom_fields" "flag"])))
-        (is (= (:auths get5-team)))))))
+        (is (= (:auths get5-team))))))))
