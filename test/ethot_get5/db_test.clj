@@ -4,6 +4,7 @@
 
 (def python-executable (:python-executable env))
 (def python-library-path (:python-library-path env))
+
 (py/initialize! :python-executable python-executable
                 :library-path python-library-path)
 
@@ -22,49 +23,117 @@
   (let [pbytes (python/bytearray)
         cljbytes-len (count cljbytes)]
     (doseq [i (range cljbytes-len)]
-      (println cljbytes)
-      (println i)
-      (println (get cljbytes i))
-      (py. pbytes append (+ (get cljbytes i) 128))
-      (println pbytes))
-    (println (python/bytes pbytes))
+      (py. pbytes append (+ (get cljbytes i) 128)))
     (pickle/loads (python/bytes pbytes))))
 
 (deftest pickle-test
   (testing "pickle"
-    (is (= (unpickle-steam-ids (pickle-steam-ids ["hi"])) ["hi"]))))
+    (is (= (unpickle-steam-ids (pickle-steam-ids ["hi", "ethot"])) ["hi", "ethot"]))))
 
-(comment (deftest team-test
-  (let [team {"id" "1234"
-              "name" "Test Team"
-              "custom_fields"
-                {"tag" "TT"
-                 "flag" "US"}
-              "lineup"
-                [{"custom_fields"
-                    {"steam_id" "STEAM_0:0:10885595"}}
-                 {"custom_fields"
-                    {"steam_id" "STEAM_0:0:46862"}}]}
-        auths [(byte 0x80)
-               (byte 0x03)]]
+(deftest import-test
+  (let [team1 {"id" "1111"
+               "name" "Test Team 1"
+               "custom_fields"
+                 {"tag" "TT1"
+                  "flag" "US"}
+               "lineup"
+                 [{"custom_fields"
+                     {"steam_id" "STEAM_0:0:10885595"}}
+                  {"custom_fields"
+                     {"steam_id" "STEAM_0:0:46862"}}]}
+        team2 {"id" "2222"
+               "name" "Test Team 2"
+               "custom_fields"
+               {"tag" "TT2"
+                "flag" "US"}
+               "lineup"
+               [{"custom_fields"
+                 {"steam_id" "STEAM_0:1:12147600"}}
+                {"custom_fields"
+                 {"steam_id" "STEAM_0:0:13112496"}}]}
+        steam-ids (map #(get-in % ["custom_fields" "steam_id"]) (get team1 "lineup"))
+        match {"id" "3333"
+               "opponents"
+               [{"participant"
+                 {"id" "1111"}}
+                {"participant"
+                 {"id" "2222"}}]}
+        server-ip "test-server"
+        plugin-version "0.7.1"]
+
+    ; Do tear-down first so we can clean up after failed tests.
     (testing "Tear Down."
-      (jdbc/execute-one! ethot-ds ["delete from team where
-                                    toornament_id = ?" (get team "id")]
+      ; Clear match tables
+      (jdbc/execute-one! get5-web-ds ["delete from `match` where
+                                       team1_id = ?"
+                                      (toornament-to-get5-team-id (get team1 "id"))]
+                   {:builder-fn rs/as-unqualified-lower-maps})
+      (jdbc/execute-one! ethot-ds ["delete from `match` where
+                                    toornament_id = ?" (get match "id")]
                          {:builder-fn rs/as-unqualified-lower-maps})
-      (jdbc/execute-one! get5-web-ds ["delete from team where
-                                       name = ?" (get team "name")]
+      ; Clear team tables
+      (jdbc/execute-one! ethot-ds ["delete from team
+                                    where toornament_id = ?
+                                    or toornament_id = ?"
+                                   (get team1 "id") (get team2 "id")]
+                         {:builder-fn rs/as-unqualified-lower-maps})
+      (jdbc/execute-one! get5-web-ds ["delete from team
+                                       where name = ?
+                                       or name = ?"
+                                      (get team1 "name") (get team2 "name")]
+                         {:builder-fn rs/as-unqualified-lower-maps})
+      ; Clear game_server table
+      (jdbc/execute-one! get5-web-ds ["delete from game_server where
+                                       ip_string = ?" server-ip]
                          {:builder-fn rs/as-unqualified-lower-maps}))
+
     (testing "import-team"
-      (import-team team)
-      (let [ethot-team (jdbc/execute-one! ethot-ds ["select * from team where
-                                                     toornament_id = ?" (get team "id")]
+      (import-team team1)
+      (import-team team2)
+      (let [ethot-team (jdbc/execute-one! ethot-ds ["select * from team
+                                                     where toornament_id = ?"
+                                                    (get team1 "id")]
                                           {:builder-fn rs/as-unqualified-lower-maps})
-            get5-team (jdbc/execute-one! get5-web-ds ["select * from team where
-                                                       name = ?" (get team "name")]
+            get5-team (jdbc/execute-one! get5-web-ds ["select * from team
+                                                       where name = ?"
+                                                      (get team1 "name")]
                                          {:builder-fn rs/as-unqualified-lower-maps})]
-        (is (= (:toornament_id ethot-team) (get team "id")))
-        (is (= (:get5_id ethot-team) (:user_id get5-team)))
-        (is (= (:name get5-team) (get team "name")))
-        (is (= (:tag get5-team) (get-in team ["custom_fields" "tag"])))
-        (is (= (:flag get5-team) (get-in team ["custom_fields" "flag"])))
-        (is (= (:auths get5-team))))))))
+        (is (= (:toornament_id ethot-team) (get team1 "id")))
+        (is (= (:get5_id ethot-team) (:id get5-team)))
+        (is (= (:name get5-team) (get team1 "name")))
+        (is (= (:tag get5-team) (get-in team1 ["custom_fields" "tag"])))
+        (is (= (:flag get5-team) (get-in team1 ["custom_fields" "flag"])))
+        (is (= (unpickle-steam-ids (:auths get5-team)) steam-ids))
+        (is (= (toornament-to-get5-team-id (get team1 "id")) (:id get5-team)))))
+
+    (testing "import-match"
+      (let [server-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into
+                                                                       game_server (ip_string)
+                                                                       values (?)" server-ip]
+                                                         {:return-keys true}))
+            max-maps 1]
+        (import-match match max-maps server-id plugin-version)
+        (let [ethot-match (jdbc/execute-one! ethot-ds ["select * from `match`
+                                                        where toornament_id = ?"
+                                                       (get match "id")]
+                                             {:builder-fn rs/as-unqualified-lower-maps})
+              get5-match (jdbc/execute-one! get5-web-ds ["select * from `match`
+                                                          where id = ?"
+                                                         (:get5_id ethot-match)]
+                                            {:builder-fn rs/as-unqualified-lower-maps})
+              game-server (jdbc/execute-one! get5-web-ds ["select * from game_server
+                                                          where id = ?"
+                                                         server-id]
+                                            {:builder-fn rs/as-unqualified-lower-maps})
+              team1-get5-id (toornament-to-get5-team-id (get-in match ["opponents" 0 "participant" "id"]))
+              team2-get5-id (toornament-to-get5-team-id (get-in match ["opponents" 1 "participant" "id"]))]
+          (is (= (:toornament_id ethot-match) (get match "id")))
+          (is (= (:get5_id ethot-match) (:id get5-match)))
+          (is (= (:server_id get5-match) server-id))
+          (is (= (:team1_id get5-match) team1-get5-id))
+          (is (= (:team2_id get5-match) team2-get5-id))
+          (is (= (:max_maps get5-match) max-maps))
+          (is (= (:skip_veto get5-match) true))
+          (is (= (count (:api_key get5-match)) 24))
+          (is (= (:plugin_version get5-match) plugin-version))
+          (is (= (:in_use game-server) true)))))))

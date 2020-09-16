@@ -16,7 +16,6 @@
 (def import-blacklist (:import-blacklist env))
 (def map-pool (:map-pool env))
 (def python-executable (:python-executable env))
-(def user-id (:get5-web-user-id env))
 
 (def ethot-ds (jdbc/get-datasource
                {:dbtype "mysql"
@@ -38,27 +37,28 @@
         pbytes (pickle/dumps plist)
         pbytes-len (python/len pbytes)
         cljbytes (byte-array pbytes-len)]
-    (for [i (range pbytes-len)] (aset-byte cljbytes i (- (py. pbytes __getitem__ i) 128)))))
+    (doseq [i (range pbytes-len)]
+      (aset-byte cljbytes i (- (py. pbytes __getitem__ i) 128)))
+    cljbytes))
 
 (defn import-team
   [team]
   (let [team-name (get team "name")
         team-tag (get-in team ["custom_fields" "tag"])
         team-flag (get-in team ["custom_fields" "flag"])
-        auths (pickle-steam-ids (map #(get-in % ["custom_fields" "steam_id"]) (get team "lineup")))]
-    (jdbc/execute-one! get5-web-ds ["insert into team (user_id,
-                                                       name,
-                                                       tag,
-                                                       flag,
-                                                       auths,
-                                                       public_team)
-                                     values (?, ?, ?, ?, ?)"
-                                    user-id team-name team-tag team-flag auths 0]
-                       {:builder-fn rs/as-unqualified-lower-maps})
+        auths (pickle-steam-ids (map #(get-in % ["custom_fields" "steam_id"]) (get team "lineup")))
+        get5-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into team (name,
+                                                                                   tag,
+                                                                                   flag,
+                                                                                   auths,
+                                                                                   public_team)
+                                                                 values (?, ?, ?, ?, ?)"
+                                                                team-name team-tag team-flag auths 0]
+                                                   {:return-keys true}))]
 
     (jdbc/execute-one! ethot-ds ["insert into team (toornament_id, get5_id)
                                   values (?, ?)"
-                                 (get team "id")]
+                                 (get team "id") get5-id]
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn toornament-to-get5-team-id
@@ -74,40 +74,45 @@
   (clojure.string/join (take 24 (repeatedly #(get "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" (rand-int 36))))))
 
 (defn import-match
-  [match games server-id plugin-version]
+  [match max-maps server-id plugin-version]
   (let [team1-toornament-id (get-in match ["opponents" 0 "participant" "id"])
         team2-toornament-id (get-in match ["opponents" 1 "participant" "id"])
         team1-id (toornament-to-get5-team-id team1-toornament-id)
         team2-id (toornament-to-get5-team-id team2-toornament-id)
-        max-maps (count games)
         skip-veto (if (= max-maps 1) true false)
-        api-key (gen-api-key)]
-    (jdbc/execute-one! get5-web-ds ["insert into match (user_id,
-                                                        server_id,
-                                                        team1_id,
-                                                        team2_id,
-                                                        max_maps,
-                                                        skip_veto,
-                                                        veto_mappool,
-                                                        api_key)
-                                     values (?, ?, ?, ?, ?, ?, ?, ?)"
-                                    user-id
-                                    server-id
-                                    team1-id
-                                    team2-id
-                                    max-maps
-                                    skip-veto
-                                    map-pool
-                                    api-key]
-                       {:builder-fn rs/as-unqualified-lower-maps}
-    ; Create match db entry in ethot
-    ; Set server db entry in_use
-    )))
+        api-key (gen-api-key)
+        get5-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into `match` (server_id,
+                                                                                      team1_id,
+                                                                                      team2_id,
+                                                                                      plugin_version,
+                                                                                      max_maps,
+                                                                                      skip_veto,
+                                                                                      veto_mappool,
+                                                                                      api_key)
+                                                                 values (?, ?, ?, ?, ?, ?, ?, ?)"
+                                                                server-id
+                                                                team1-id
+                                                                team2-id
+                                                                plugin-version
+                                                                max-maps
+                                                                skip-veto
+                                                                map-pool
+                                                                api-key]
+                                                   {:return-keys true}))]
+    (jdbc/execute-one! ethot-ds ["insert into `match` (toornament_id, get5_id)
+                                  values (?, ?)"
+                                 (get match "id") get5-id]
+                       {:builder-fn rs/as-unqualified-lower-maps})
+    (jdbc/execute-one! get5-web-ds ["update game_server
+                                     set in_use = true
+                                     where id = ?"
+                                    server-id]
+                       {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn match-imported?
   [toornament-id]
   (= (:c (jdbc/execute-one! ethot-ds ["select count(*) as c
-                                       from match
+                                       from `match`
                                        where toornament_id = ?" toornament-id]
                             {:builder-fn rs/as-unqualified-lower-maps}))
      0))

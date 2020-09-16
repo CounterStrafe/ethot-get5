@@ -10,13 +10,13 @@ USE ethot;
 CREATE TABLE IF NOT EXISTS `team` (
   `toornament_id` varchar(200) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
   `get5_id` int(255) NOT NULL,
-  PRIMARY KEY (`tournament_id`)
+  PRIMARY KEY (`toornament_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 CREATE TABLE IF NOT EXISTS `match` (
   `toornament_id` varchar(200) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
   `get5_id` int(255) NOT NULL,
-  PRIMARY KEY (`tournament_id`)
+  PRIMARY KEY (`toornament_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
 CREATE TABLE IF NOT EXISTS `delays` (

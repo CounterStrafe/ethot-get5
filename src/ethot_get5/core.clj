@@ -56,7 +56,7 @@
                 games (toornament/games tournament-id match-id)
                 ;[server-id plugin-version] (get-available-server)
                 ]
-            ;(db/import-match match games server-id plugin-version)
+            ;(db/import-match match (count games) server-id plugin-version)
             ; RCON send_to_server
           ))))))
 
