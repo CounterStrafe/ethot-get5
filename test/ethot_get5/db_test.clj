@@ -34,13 +34,13 @@
   (let [team1 {"id" "1111"
                "name" "Test Team 1"
                "custom_fields"
-                 {"tag" "TT1"
-                  "flag" "US"}
+               {"tag" "TT1"
+                "flag" "US"}
                "lineup"
-                 [{"custom_fields"
-                     {"steam_id" "STEAM_0:0:10885595"}}
-                  {"custom_fields"
-                     {"steam_id" "STEAM_0:0:46862"}}]}
+               [{"custom_fields"
+                 {"steam_id" "STEAM_0:0:10885595"}}
+                {"custom_fields"
+                 {"steam_id" "STEAM_0:0:46862"}}]}
         team2 {"id" "2222"
                "name" "Test Team 2"
                "custom_fields"
@@ -67,7 +67,7 @@
       (jdbc/execute-one! get5-web-ds ["delete from `match` where
                                        team1_id = ?"
                                       (toornament-to-get5-team-id (get team1 "id"))]
-                   {:builder-fn rs/as-unqualified-lower-maps})
+                         {:builder-fn rs/as-unqualified-lower-maps})
       (jdbc/execute-one! ethot-ds ["delete from `match` where
                                     toornament_id = ?" (get match "id")]
                          {:builder-fn rs/as-unqualified-lower-maps})
@@ -123,8 +123,8 @@
                                             {:builder-fn rs/as-unqualified-lower-maps})
               game-server (jdbc/execute-one! get5-web-ds ["select * from game_server
                                                           where id = ?"
-                                                         server-id]
-                                            {:builder-fn rs/as-unqualified-lower-maps})
+                                                          server-id]
+                                             {:builder-fn rs/as-unqualified-lower-maps})
               team1-get5-id (toornament-to-get5-team-id (get-in match ["opponents" 0 "participant" "id"]))
               team2-get5-id (toornament-to-get5-team-id (get-in match ["opponents" 1 "participant" "id"]))]
           (is (= (:toornament_id ethot-match) (get match "id")))
@@ -136,4 +136,20 @@
           (is (= (:skip_veto get5-match) true))
           (is (= (count (:api_key get5-match)) 24))
           (is (= (:plugin_version get5-match) plugin-version))
-          (is (= (:in_use game-server) true)))))))
+          (is (= (:in_use game-server) true)))))
+
+    (testing "get-servers-not-in-use"
+      (let [server-id (:id (jdbc/execute-one! get5-web-ds ["select id from game_server
+                                                            where ip_string = ?" server-ip]
+                                              {:builder-fn rs/as-unqualified-lower-maps}))]
+        (jdbc/execute-one! get5-web-ds ["update game_server
+                                       set in_use = false
+                                       where ip_string = ?" server-ip]
+                           {:builder-fn rs/as-unqualified-lower-maps})
+        (is (= (count (get-servers-not-in-use)) 1))
+        (is (= (get-in (get-servers-not-in-use) [0 :id]) server-id))
+        (jdbc/execute-one! get5-web-ds ["update game_server
+                                       set in_use = true
+                                       where ip_string = ?" server-ip]
+                           {:builder-fn rs/as-unqualified-lower-maps})
+        (is (= (count (get-servers-not-in-use)) 0))))))

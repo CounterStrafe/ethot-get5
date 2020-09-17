@@ -109,6 +109,12 @@
                                     server-id]
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
+(defn get-servers-not-in-use
+  []
+  (jdbc/execute! get5-web-ds ["select id from game_server
+                               where in_use = false"]
+                 {:builder-fn rs/as-unqualified-lower-maps}))
+
 (defn match-imported?
   [toornament-id]
   (= (:c (jdbc/execute-one! ethot-ds ["select count(*) as c

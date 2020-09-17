@@ -42,6 +42,10 @@
                 (not (contains? import-blacklist (get % "id"))))
           (toornament/importable-matches tournament-id)))
 
+(defn get-available-server
+  []
+  (let [servers (db/get-servers-not-in-use)]))
+
 (defn run-stage
   "Continuously imports and exports all available games every 30 seconds."
   [tournament-id stage-name]
