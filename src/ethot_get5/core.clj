@@ -62,9 +62,8 @@
         (doseq [match (unimported-matches tournament-id)]
           (let [match-id (get match "id")
                 games (toornament/games tournament-id match-id)
-                ;[server-id plugin-version] (get-available-server)
-                ]
-            ;(db/import-match match (count games) server-id plugin-version)
+                server (get-available-server)]
+            (db/import-match match (count games) server)
             ; RCON send_to_server
           ))))))
 

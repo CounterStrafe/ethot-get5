@@ -112,7 +112,7 @@
                                                                        values (?)" server-ip]
                                                          {:return-keys true}))
             max-maps 1]
-        (import-match match max-maps server-id plugin-version)
+        (import-match match max-maps {:server_id server-id :plugin_version plugin-version})
         (let [ethot-match (jdbc/execute-one! ethot-ds ["select * from `match`
                                                         where toornament_id = ?"
                                                        (get match "id")]

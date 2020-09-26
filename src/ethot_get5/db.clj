@@ -81,10 +81,9 @@
 
 (defn import-match
   "Takes a Toornament match, the max number of maps to be played,
-   the server ID, and the server get5 plugin version.
-   Adds the match to the get5-web and ethot match tables,
+   and a get5 server DB row. Adds the match to the get5-web and ethot match tables,
    and sets the server in_use column in the get5 game_server table."
-  [match max-maps server-id plugin-version]
+  [match max-maps {:keys [server_id plugin_version]}]
   (let [team1-toornament-id (get-in match ["opponents" 0 "participant" "id"])
         team2-toornament-id (get-in match ["opponents" 1 "participant" "id"])
         team1-id (toornament-to-get5-team-id team1-toornament-id)
@@ -100,10 +99,10 @@
                                                                                       veto_mappool,
                                                                                       api_key)
                                                                  values (?, ?, ?, ?, ?, ?, ?, ?)"
-                                                                server-id
+                                                                server_id
                                                                 team1-id
                                                                 team2-id
-                                                                plugin-version
+                                                                plugin_version
                                                                 max-maps
                                                                 skip-veto
                                                                 map-pool
@@ -116,7 +115,7 @@
     (jdbc/execute-one! get5-web-ds ["update game_server
                                      set in_use = true
                                      where id = ?"
-                                    server-id]
+                                    server_id]
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn get-servers-not-in-use
