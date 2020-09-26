@@ -138,6 +138,13 @@
           (is (= (:plugin_version get5-match) plugin-version))
           (is (= (:in_use game-server) true)))))
 
+    (testing "match-on-server?"
+      (let [server-id (:id (jdbc/execute-one! get5-web-ds ["select id from game_server
+                                                            where ip_string = ?" server-ip]
+                                              {:builder-fn rs/as-unqualified-lower-maps}))]
+        (is (= (match-on-server? server-id) true))
+        (is (= (match-on-server? 9999) false))))
+
     (testing "get-servers-not-in-use"
       (let [server-id (:id (jdbc/execute-one! get5-web-ds ["select id from game_server
                                                             where ip_string = ?" server-ip]

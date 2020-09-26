@@ -8,6 +8,7 @@
                  [org.suskalo/discljord "0.2.5"]
                  [clj-http "3.10.0"]
                  [clj-python/libpython-clj "1.46"]
+                 [counterstrafe/clj-rcon "0.1.1"]
                  [mysql/mysql-connector-java "8.0.19"]
                  [seancorfield/next.jdbc "1.0.409"]
                  [yogthos/config "1.1.7"]]

@@ -14,6 +14,7 @@
             [clojure.core.async :as async]
             [clojure.string :as str]
             [ethot-get5.db :as db]
+            [ethot-get5.rcon :as rcon]
             [ethot-get5.toornament :as toornament])
   (:gen-class))
 
@@ -43,8 +44,11 @@
           (toornament/importable-matches tournament-id)))
 
 (defn get-available-server
+  "Returns the next available server."
   []
-  (let [servers (db/get-servers-not-in-use)]))
+  (filter #(and (not (db/match-on-server? (:id %)))
+                (rcon/server-available? %))
+          (db/get-servers-not-in-use)))
 
 (defn run-stage
   "Continuously imports and exports all available games every 30 seconds."

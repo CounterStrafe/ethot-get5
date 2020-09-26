@@ -32,6 +32,8 @@
                    :password db-password}))
 
 (defn pickle-steam-ids
+  "Takes a vector of Steam ID's, pickles it as a Python list,
+   and returns the pickled object as a byte-array"
   [steam-ids]
   (let [plist (py/->py-list steam-ids)
         pbytes (pickle/dumps plist)
@@ -42,6 +44,8 @@
     cljbytes))
 
 (defn import-team
+  "Takes a Toornament participant entry
+   and adds it to the get5-web and ethot team tables"
   [team]
   (let [team-name (get team "name")
         team-tag (get-in team ["custom_fields" "tag"])
@@ -62,6 +66,8 @@
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn toornament-to-get5-team-id
+  "Takes a Toornament participant ID
+   and returns it's ID in the get5-web team table"
   [toornament-id]
   (:get5_id (jdbc/execute-one! ethot-ds ["select get5_id from team
                                           where toornament_id = ?"
@@ -74,6 +80,10 @@
   (clojure.string/join (take 24 (repeatedly #(get "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" (rand-int 36))))))
 
 (defn import-match
+  "Takes a Toornament match, the max number of maps to be played,
+   the server ID, and the server get5 plugin version.
+   Adds the match to the get5-web and ethot match tables,
+   and sets the server in_use column in the get5 game_server table."
   [match max-maps server-id plugin-version]
   (let [team1-toornament-id (get-in match ["opponents" 0 "participant" "id"])
         team2-toornament-id (get-in match ["opponents" 1 "participant" "id"])
@@ -110,17 +120,31 @@
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
 (defn get-servers-not-in-use
+  "Returns the servers not in use."
   []
-  (jdbc/execute! get5-web-ds ["select id from game_server
+  (jdbc/execute! get5-web-ds ["select * from game_server
                                where in_use = false"]
                  {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn match-imported?
+  "Takes a Toornament match ID and returns whether it has been imported or not."
   [toornament-id]
   (= (:c (jdbc/execute-one! ethot-ds ["select count(*) as c
                                        from `match`
                                        where toornament_id = ?" toornament-id]
                             {:builder-fn rs/as-unqualified-lower-maps}))
+     0))
+
+(defn match-on-server?
+  "Returns whether the server ID has a match running on it."
+  [server-id]
+  (not= (:c (jdbc/execute-one! get5-web-ds ["select count(*) as c
+                                             from `match`
+                                             where server_id = ? and
+                                             end_time is null and
+                                             (cancelled = false or cancelled is null)"
+                                            server-id]
+                               {:builder-fn rs/as-unqualified-lower-maps}))
      0))
 
 (defn match-delayed?
