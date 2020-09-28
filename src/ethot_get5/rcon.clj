@@ -6,21 +6,31 @@
 
 (def state (atom {:conns {}}))
 
+(defn- exec
+  "Executes an RCON command on a server"
+  [command {:keys [id ip_string port rcon_password]}]
+  (when (not (contains? (:conns @state) id))
+    (swap! state assoc-in [:conns id] (rcon/connect ip_string port rcon_password)))
+  @(rcon/exec @(get-in @state [:conns id]) command))
+
 (defn server-available?
   "Takes a get5 server DB row and runs the get5_web_available
-   rcon command on the server and returns the output"
-  [{:keys [server_id ip_string port rcon_password]}]
+   RCON command on the server and returns the output"
+  [server]
   ; TODO: This is a really lazy try/catch. Try to make it more specific.
   (try
-    (when (not (contains? (:conns @state) server_id))
-      (swap! state assoc-in [:conns server_id] (rcon/connect ip_string port rcon_password)))
     (=
       (get
         (json/read-str
           (first
             (str/split
-              @(rcon/exec @(get-in @state [:conns server_id])
-                          "get5_web_available")
+              (exec "get5_web_available" server)
               #"\n")))
         "gamestate") 0)
     (catch Exception e false)))
+
+(defn send-to-server
+  "Executes the get5_loadmatch_url RCON command on the server
+   with the match config URL"
+  [match-config-url server]
+  (exec (str "get5_loadmatch_url " match-config-url) server))

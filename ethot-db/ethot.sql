@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS `delays` (
   PRIMARY KEY (`match_id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1;
 
+CREATE TABLE IF NOT EXISTS `reports` (
+  `get5_match_id` int(255) NOT NULL,
+  `report_status` int(255) NOT NULL,
+  PRIMARY KEY (`get5_match_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
 GRANT ALL PRIVILEGES ON ethot.* TO 'get5-web';
 
 COMMIT;

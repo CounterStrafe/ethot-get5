@@ -122,3 +122,20 @@
                                   :Authorization (oauth "participant")
                                   ;;FIX TO GET ALL PARTICIPANTS, INCLUDING THOSE NOT IN THIS RANGE
                                   :Range "participants=0-49"}}))))
+
+(defn complete-game
+  [tournament-id match-id game-number team1-score team2-score]
+  (let [url (str base-url
+                 "/organizer/v2/tournaments/" tournament-id
+                 "/matches/" match-id
+                 "/games/" game-number)]
+    (process-response
+      (hclient/patch url {:headers {:X-Api-Key toornament-api-key
+                                    :Authorization (oauth "result")}
+                          :form-params {:status "completed"
+                                        :opponents [
+                                          {:number 1
+                                           :score team1-score}
+                                          {:number 2
+                                           :score team2-score}]}
+                          :content-type :json}))))
