@@ -65,6 +65,33 @@
                                  (get team "id") get5-id]
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
+(defn team-imported?
+  [{:strs [id]}]
+  (not
+    (nil?
+      (jdbc/execute-one! ethot-ds ["select * from team
+                                    where toornament_id = ?" id]
+                         {:builder-fn rs/as-unqualified-lower-maps}))))
+
+(defn import-server
+  [{:keys [id ip_string port rcon_password]}]
+  (jdbc/execute-one! get5-web-ds ["insert into game_server (id,
+                                                            ip_string,
+                                                            port,
+                                                            rcon_password,
+                                                            public_server)
+                                   values (?, ?, ?, ?, ?)"
+                                  id ip_string port rcon_password 0]
+                     {:return-keys true}))
+
+(defn server-imported?
+  [{:keys [id]}]
+  (not
+    (nil?
+      (jdbc/execute-one! get5-web-ds ["select * from game_server
+                                       where id = ?" id]
+                         {:builder-fn rs/as-unqualified-lower-maps}))))
+
 (defn toornament-to-get5-team-id
   "Takes a Toornament participant ID
    and returns it's ID in the get5-web team table"
@@ -79,6 +106,14 @@
   []
   (clojure.string/join (take 24 (repeatedly #(get "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" (rand-int 36))))))
 
+(defn team-name
+  [team-id]
+  (:name
+    (jdbc/execute-one! get5-web-ds ["select name from team
+                                     where id = ?"
+                                    team-id]
+                       {:builder-fn rs/as-unqualified-lower-maps})))
+
 (defn import-match
   "Takes a Toornament match, the max number of maps to be played,
    and a get5 server DB row. Adds the match to the get5-web and ethot match tables,
@@ -90,6 +125,8 @@
         team2-toornament-id (get-in match ["opponents" 1 "participant" "id"])
         team1-id (toornament-to-get5-team-id team1-toornament-id)
         team2-id (toornament-to-get5-team-id team2-toornament-id)
+        team1-name (team-name team1-id)
+        team2-name (team-name team2-id)
         skip-veto (if (= max-maps 1) true false)
         api-key (gen-api-key)
         get5-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into `match` (server_id,
@@ -99,8 +136,10 @@
                                                                                       max_maps,
                                                                                       skip_veto,
                                                                                       veto_mappool,
-                                                                                      api_key)
-                                                                 values (?, ?, ?, ?, ?, ?, ?, ?)"
+                                                                                      api_key,
+                                                                                      team1_string,
+                                                                                      team2_string)
+                                                                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                                                                 server-id
                                                                 team1-id
                                                                 team2-id
@@ -108,7 +147,9 @@
                                                                 max-maps
                                                                 skip-veto
                                                                 map-pool
-                                                                api-key]
+                                                                api-key
+                                                                team1-name
+                                                                team2-name]
                                                    {:return-keys true}))]
     (jdbc/execute-one! ethot-ds ["insert into `match` (toornament_id, get5_id)
                                   values (?, ?)"
@@ -144,7 +185,8 @@
   []
   (jdbc/execute! get5-web-ds ["select * from game_server
                                where in_use = false
-                               or in_use is null"]
+                               or in_use is null
+                               order by id asc"]
                  {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn match-imported?
@@ -168,6 +210,13 @@
                                {:builder-fn rs/as-unqualified-lower-maps}))
      0))
 
+(defn delay-match
+  "Adds a match to the delays table."
+  [match-id]
+  (jdbc/execute-one! ethot-ds ["insert into delays (match_id)
+                                values (?)" match-id]
+                     {:builder-fn rs/as-unqualified-lower-maps}))
+
 (defn match-delayed?
   "Checks if a match is delayed."
   [match-id]
@@ -176,6 +225,13 @@
                                           where match_id = ?" match-id]
                                {:builder-fn rs/as-unqualified-lower-maps}))
         0))
+
+(defn resume-match
+  "Removes a match from the delays table."
+  [match-id]
+  (jdbc/execute-one! ethot-ds ["delete from delays
+                                where match_id = ?" match-id]
+                     {:builder-fn rs/as-unqualified-lower-maps}))
 
 (defn add-unreported
   "adds a match to the reports table as unreported"
@@ -251,13 +307,22 @@
   [exportable-identifier-ids]
   (if (empty? exportable-identifier-ids)
     '()
-    (let [result (jdbc/execute! ethot-ds
-                                [(str "select id from matchs where id in ("
+    (let [result (jdbc/execute! get5-web-ds
+                                [(str "select id from `match` where id in ("
                                       (str/join "," exportable-identifier-ids) ") "
                                       "and winner is not null
                                        and end_time is not null")]
                                 {:builder-fn rs/as-unqualified-lower-maps})]
       (map #(int (get5-to-toornament-match-id (:id %))) result))))
+
+(defn get-match-id-with-team
+  [team-name]
+  (let [result (jdbc/execute! get5-web-ds
+                              [(str "select id from `match` where "
+                                    "'" team-name "'" " "
+                                    "in (team1_string, team2_string)")]
+                              {:builder-fn rs/as-unqualified-lower-maps})]
+    (map :id result)))
 
 (defn get-map-stat
   [get5-match-id map-number]
@@ -270,7 +335,7 @@
 (defn get-match-result
   [get5-match-id]
   (let [match (jdbc/execute-one! get5-web-ds ["select * from `match`
-                                           where id = ?" get5-match-id]
+                                               where id = ?" get5-match-id]
                                  {:builder-fn rs/as-unqualified-lower-maps})
         max-maps (:max_maps match)]
     (for [x (range 1 (+ max-maps 1))

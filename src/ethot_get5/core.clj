@@ -29,12 +29,20 @@
 (def import-blacklist (:import-blacklist env))
 (def map-pool (:map-pool env))
 (def report-timeout (:report-timeout env))
+(def servers (:servers env))
 
 (defn sync-teams
   "Imports every team from the tournament."
   [tournament-id]
   (doseq [team (toornament/participants tournament-id)]
-    (db/import-team team)))
+    (when-not (db/team-imported? team)
+      (db/import-team team))))
+
+(defn sync-servers
+  []
+  (doseq [server servers]
+    (when-not (db/server-imported? server)
+      (db/import-server server))))
 
 (defn unimported-matches
   "Returns the matches that can and have not been imported yet."
@@ -47,14 +55,15 @@
 (defn get-available-server
   "Returns the next available server."
   []
-  (filter #(and (not (db/match-on-server? (:id %)))
-                (rcon/server-available? %))
-          (db/get-servers-not-in-use)))
+  (first
+    (filter #(and (not (db/match-on-server? (:id %)))
+                  (rcon/server-available? %))
+            (db/get-servers-not-in-use))))
 
 (defn create-match-config-url
   "Returns the config URL for the match ID."
   [match-id]
-  (str/replace get5-match-config-url-template #"<match-id>" match-id))
+  (str/replace get5-match-config-url-template #"<match-id>" (str match-id)))
 
 (defn notify-discord
   "Announces the game in the announcements channel and DM's all the players with
@@ -94,8 +103,13 @@
     (swap! state assoc :discord-user-ids (gen-discord-user-map)))
   (get (:discord-user-ids @state) discord-username))
 
+(defn format-discord-mentions
+  "Takes a sequence of Discord ID's and retuns a string that mentions them."
+  [discord-ids]
+  (str/join " " (map #(str "<@" % ">") discord-ids)))
+
 (defn notify-players
-  [team1 team2 ip]
+  [team1 team2 {:keys [ip_string port]}]
   (let [teams (list team1 team2)
         team1-name (get (first teams) "name")
         team2-name (get (second teams) "name")
@@ -109,7 +123,7 @@
                                              ; will give you a "Server Full" error
                                              ; even when it's not.
                                              ;"\nsteam://connect/" ip "/" config_password
-                                             "\n" "`connect " ip
+                                             "\n" "`connect " ip_string ":" port
                                              "; password " game-server-password ";`"))))))
 
 (defn export-game
@@ -156,11 +170,27 @@
                          close-game-time
                          (get-in state [:games-awaiting-close (str get5-id)])))))
 
+(defn get-team-of-discord-user
+  "given the discord username will find the team on toornament they belong to"
+  [discord-username]
+  (let [tournament-id (:tournament-id @state)
+        participants (toornament/participants tournament-id)]
+    ;;could be much cleaner with a postwalk, but this is more performant
+    (some (fn [m]
+            (when
+             (some
+              #(= % discord-username)
+              (map #(get-in % ["custom_fields" "discord_username"])
+                   (get m "lineup")))
+              (get m "name")))
+          participants)))
+
 (defn run-stage
   "Continuously imports and exports all available games every 30 seconds."
   [tournament-id stage-name]
   (async/go
-    (sync-teams)
+    (sync-teams tournament-id)
+    (sync-servers)
     (let [stage-id (get (toornament/get-stage tournament-id stage-name) "id")]
       (swap! state assoc :tournament-id tournament-id)
       (loop []
@@ -177,7 +207,7 @@
                 team2 (toornament/participant tournament-id team2-id)]
             (rcon/send-to-server match-config-url server)
             (notify-discord team1 team2 (:id server))
-            (notify-players team1 team2 (:ip_string server))
+            (notify-players team1 team2 server)
             (when (not (contains? (:games-awaiting-close @state) get5-match-id))
               (swap! state assoc-in [:games-awaiting-close get5-match-id] (async/chan))
               (cond
@@ -204,6 +234,9 @@
            (= event-type :message-create))
       (first (str/split (:content event-data) #" ")))))
 
+(defmethod handle-event :default
+  [event-type event-data])
+
 (defmethod handle-event "!run-stage"
   [event-type {:keys [content channel-id]}]
   (when (= channel-id discord-admin-channel-id)
@@ -215,6 +248,64 @@
         (do
           (swap! state assoc :stage-running true)
           (run-stage tournament-id stage-name))))))
+
+(defmethod handle-event "!stop-stage"
+  [event-type {:keys [channel-id]}]
+  (when (= channel-id discord-admin-channel-id)
+    (println "Received stop")
+    (swap! state assoc :stage-running false)))
+
+(defmethod handle-event "!report"
+  [event-type {{username :username id :id disc :discriminator} :author, :keys [channel-id]}]
+  (let [team (get-team-of-discord-user (str username "#" disc))
+        match-ids (db/get-match-id-with-team team)
+        games-awaiting-close (:games-awaiting-close @state)
+        chan (some #(get games-awaiting-close (str (int %))) match-ids)]
+    (if chan
+      (do
+        (async/go
+          (async/>! chan "some-data"))
+        (dmess/create-message! (:messaging @state) channel-id
+                               :content (str (format-discord-mentions [id])
+                                             " Report has been sent!"))
+        (dmess/create-message! (:messaging @state) discord-admin-channel-id
+                               :content (str "@here " username "#" disc
+                                             " in team " team
+                                             " has sent a report for his game!")))
+      (do
+        (dmess/create-message! (:messaging @state) channel-id
+                               :content (str (format-discord-mentions [id])
+                                             " Something went wrong! Admins have been notified."))
+        (dmess/create-message! (:messaging @state) discord-admin-channel-id
+                               :content (str "@here " username "#" disc
+                                             " in team " team "."
+                                             " A report has FAILED to be sent!"))))))
+
+(defmethod handle-event "!delay"
+  [event-type {:keys [channel-id content]}]
+  (when (= channel-id discord-admin-channel-id)
+    (let [input-rest (rest (str/split content #" "))
+          match-id (first input-rest)]
+      (if (db/match-delayed? match-id)
+        (dmess/create-message! (:messaging @state) channel-id
+                               :content (str match-id " is already delayed."))
+        (do
+          (db/delay-match match-id)
+          (dmess/create-message! (:messaging @state) channel-id
+                                 :content (str match-id " is now delayed.")))))))
+
+(defmethod handle-event "!resume"
+  [event-type {:keys [channel-id content]}]
+  (when (= channel-id discord-admin-channel-id)
+    (let [input-rest (rest (str/split content #" "))
+          match-id (first input-rest)]
+      (if (not (db/match-delayed? match-id))
+        (dmess/create-message! (:messaging @state) channel-id
+                               :content (str match-id " is not delayed."))
+        (do
+          (db/resume-match match-id)
+          (dmess/create-message! (:messaging @state) channel-id
+                                 :content (str match-id " is now resumed.")))))))
 
 (defn -main
   [& args]

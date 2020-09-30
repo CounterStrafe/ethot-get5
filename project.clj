@@ -14,5 +14,6 @@
                  [yogthos/config "1.1.7"]]
   ;; configuration will be read from the dev-config.edn file
   :jvm-opts ["-Dconfig=secrets.edn"]
+  :main ethot-get5.core
   :repl-options {:init-ns ethot-get5.core}
   )

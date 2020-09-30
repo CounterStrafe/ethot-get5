@@ -75,9 +75,11 @@
                  {"steam_id" "STEAM_0:0:13112496"}}]}
         steam-ids (map #(get-in % ["custom_fields" "steam_id"]) (get team1 "lineup"))]
 
-    (testing "import-team and toornament-to-get5-team-id"
+    (testing "team-imported?, import-team and toornament-to-get5-team-id"
+      (is (not (team-imported? team1)))
       (import-team team1)
       (import-team team2)
+      (is (team-imported? team1))
       (let [ethot-team (jdbc/execute-one! ethot-ds ["select * from team
                                                      where toornament_id = ?"
                                                     (get team1 "id")]
