@@ -36,11 +36,11 @@
    and returns the pickled object as a byte-array"
   [steam-ids]
   (let [plist (py/->py-list steam-ids)
-        pbytes (pickle/dumps plist)
+        pbytes (pickle/dumps plist :protocol 2)
         pbytes-len (python/len pbytes)
         cljbytes (byte-array pbytes-len)]
     (doseq [i (range pbytes-len)]
-      (aset-byte cljbytes i (- (py. pbytes __getitem__ i) 128)))
+      (aset-byte cljbytes i (unchecked-byte (py. pbytes __getitem__ i))))
     cljbytes))
 
 (defn import-team
@@ -49,7 +49,6 @@
   [team]
   (let [team-name (get team "name")
         team-tag (get-in team ["custom_fields" "tag"])
-        team-flag (get-in team ["custom_fields" "flag"])
         auths (pickle-steam-ids (map #(get-in % ["custom_fields" "steam_id"]) (get team "lineup")))
         get5-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into team (name,
                                                                                    tag,
@@ -57,7 +56,7 @@
                                                                                    auths,
                                                                                    public_team)
                                                                  values (?, ?, ?, ?, ?)"
-                                                                team-name team-tag team-flag auths 0]
+                                                                team-name team-tag "" auths 0]
                                                    {:return-keys true}))]
 
     (jdbc/execute-one! ethot-ds ["insert into team (toornament_id, get5_id)

@@ -24,7 +24,7 @@
   (let [pbytes (python/bytearray)
         cljbytes-len (count cljbytes)]
     (doseq [i (range cljbytes-len)]
-      (py. pbytes append (+ (get cljbytes i) 128)))
+      (py. pbytes append (bit-and (int (get cljbytes i)) 0xff)))
     (pickle/loads (python/bytes pbytes))))
 
 (deftest pickle-test
@@ -92,7 +92,7 @@
         (is (= (:get5_id ethot-team) (:id get5-team)))
         (is (= (:name get5-team) (get team1 "name")))
         (is (= (:tag get5-team) (get-in team1 ["custom_fields" "tag"])))
-        (is (= (:flag get5-team) (get-in team1 ["custom_fields" "flag"])))
+        ;(is (= (:flag get5-team) (get-in team1 ["custom_fields" "flag"])))
         (is (= (unpickle-steam-ids (:auths get5-team)) steam-ids))
         (is (= (toornament-to-get5-team-id (get team1 "id")) (:id get5-team)))))))
 
