@@ -146,10 +146,10 @@
       (async/timeout time-to-wait) ([x]
                                     (export-game tournament-id id)
                                     (db/set-exported id)
-                                    (swap! state update-in [:games-awaiting-close] dissoc (str id)))
+                                    (swap! state update-in [:games-awaiting-close] dissoc id))
       chan ([x]
             (db/set-reported id)
-            (swap! state update-in [:games-awaiting-close] dissoc (str id))))))
+            (swap! state update-in [:games-awaiting-close] dissoc id)))))
 
 (defn export-games
   "Will find new games that have recently ended and create a new channel that
@@ -161,13 +161,13 @@
         ready-games (toornament/importable-matches tournament-id)
         identifier-ids (map #(db/toornament-to-get5-match-id (get % "id")) ready-games)
         recently-ended (db/get-newly-ended-games identifier-ids)]
-    (doseq [get5-id (filter #(and (contains? games-awaiting-close (str %))
+    (doseq [get5-id (filter #(and (contains? games-awaiting-close %)
                                       (not (db/report-timer-started? %))) recently-ended)]
       (db/set-report-timer get5-id)
       (await-game-status tournament-id
                          get5-id
                          close-game-time
-                         (get-in state [:games-awaiting-close (str get5-id)])))))
+                         (get-in state [:games-awaiting-close get5-id])))))
 
 (defn get-team-of-discord-user
   "given the discord username will find the team on toornament they belong to"
@@ -259,7 +259,7 @@
   (let [team (get-team-of-discord-user (str username "#" disc))
         match-ids (db/get-match-id-with-team team)
         games-awaiting-close (:games-awaiting-close @state)
-        chan (some #(get games-awaiting-close (str (int %))) match-ids)]
+        chan (some #(get games-awaiting-close %) match-ids)]
     (if chan
       (do
         (async/go
