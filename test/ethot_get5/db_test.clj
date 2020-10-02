@@ -36,6 +36,15 @@
    TODO: Create a test DB before we run the tests."
   [f]
   (f)
+  ; Clear reports table
+  (jdbc/execute-one! ethot-ds ["delete from reports"]
+                     {:builder-fn rs/as-unqualified-lower-maps})
+  ; Clear player_stats
+  (jdbc/execute-one! get5-web-ds ["delete from player_stats"]
+                     {:builder-fn rs/as-unqualified-lower-maps})
+  ; Clear map_stats
+  (jdbc/execute-one! get5-web-ds ["delete from map_stats"]
+                     {:builder-fn rs/as-unqualified-lower-maps})
   ; Clear match tables
   (jdbc/execute-one! get5-web-ds ["delete from `match`"]
                      {:builder-fn rs/as-unqualified-lower-maps})
@@ -168,7 +177,7 @@
           (is (= (:team1_id get5-match) team1-get5-id))
           (is (= (:team2_id get5-match) team2-get5-id))
           (is (= (:max_maps get5-match) max-maps))
-          (is (= (:skip_veto get5-match) true))
+          (is (= (:skip_veto get5-match) false))
           (is (= (count (:api_key get5-match)) 24))
           (is (= (:plugin_version get5-match) plugin-version))
           (is (= (:in_use game-server) true)))))

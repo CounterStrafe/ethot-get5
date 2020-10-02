@@ -126,7 +126,6 @@
         team2-id (toornament-to-get5-team-id team2-toornament-id)
         team1-name (team-name team1-id)
         team2-name (team-name team2-id)
-        skip-veto (if (= max-maps 1) true false)
         api-key (gen-api-key)
         get5-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into `match` (server_id,
                                                                                       team1_id,
@@ -136,17 +135,21 @@
                                                                                       skip_veto,
                                                                                       veto_mappool,
                                                                                       api_key,
+                                                                                      team1_score,
+                                                                                      team2_score,
                                                                                       team1_string,
                                                                                       team2_string)
-                                                                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                                                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                                                                 server-id
                                                                 team1-id
                                                                 team2-id
                                                                 plugin-version
                                                                 max-maps
-                                                                skip-veto
-                                                                map-pool
+                                                                0
+                                                                (str/join " " map-pool)
                                                                 api-key
+                                                                0
+                                                                0
                                                                 team1-name
                                                                 team2-name]
                                                    {:return-keys true}))]
@@ -159,7 +162,7 @@
                                      where id = ?"
                                     server-id]
                        {:builder-fn rs/as-unqualified-lower-maps})
-    get5-id))
+    [get5-id api-key]))
 
 (defn toornament-to-get5-match-id
   "Takes a Toornament match ID
@@ -312,7 +315,7 @@
                                       "and winner is not null
                                        and end_time is not null")]
                                 {:builder-fn rs/as-unqualified-lower-maps})]
-      (map #(int (get5-to-toornament-match-id (:id %))) result))))
+      (map #(int (:id %)) result))))
 
 (defn get-match-id-with-team
   [team-name]

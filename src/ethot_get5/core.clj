@@ -27,7 +27,6 @@
 (def game-server-password (:game-server-password env))
 (def get5-match-config-url-template (:get5-match-config-url-template env))
 (def import-blacklist (:import-blacklist env))
-(def map-pool (:map-pool env))
 (def report-timeout (:report-timeout env))
 (def servers (:servers env))
 
@@ -199,13 +198,13 @@
           (let [match-id (get match "id")
                 games (toornament/games tournament-id match-id)
                 server (get-available-server)
-                get5-match-id (db/import-match match (count games) server)
+                [get5-match-id match-api-key] (db/import-match match (count games) server)
                 match-config-url (create-match-config-url get5-match-id)
                 team1-id (get-in match ["opponents" 0 "participant" "id"])
                 team2-id (get-in match ["opponents" 1 "participant" "id"])
                 team1 (toornament/participant tournament-id team1-id)
                 team2 (toornament/participant tournament-id team2-id)]
-            (rcon/send-to-server match-config-url server)
+            (rcon/send-to-server match-config-url match-api-key server)
             (notify-discord team1 team2 (:id server))
             (notify-players team1 team2 server)
             (when (not (contains? (:games-awaiting-close @state) get5-match-id))

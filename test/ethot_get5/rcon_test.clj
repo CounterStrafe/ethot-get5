@@ -16,7 +16,8 @@
           bad-server {:id 2
                       :ip_string "notahost"
                       :port 11111
-                      :rcon_password "hi"}]
+                      :rcon_password "hi"}
+          api-key "test-key"]
       (is (server-available? server))
       (is (not (server-available? bad-server)))
-      (is (.contains (send-to-server "notaurl" server) "command \"get5_loadmatch_url notaurl\"")))))
+      (is (.contains (send-to-server "notaurl" api-key server) "command \"get5_loadmatch_url notaurl\"")))))
