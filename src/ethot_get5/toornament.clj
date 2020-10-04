@@ -5,8 +5,6 @@
             [config.core :refer [env]])
   (:gen-class))
 
-(def state (atom {:match-game-numbers {}}))
-
 (def base-url "https://api.toornament.com")
 (def toornament-api-key (:toornament-api-key env))
 (def toornament-client-id (:toornament-client-id env))
@@ -73,22 +71,12 @@
                                   :Authorization (oauth "result")
                                   :Range "games=0-49"}}))))
 
-(defn single-game?
-  "Returns true if the match contains a single game."
-  [tournament-id match-id]
-  (when (not (contains? (:match-game-numbers @state) tournament-id))
-    (swap! state assoc-in [:match-game-numbers tournament-id] {}))
-  (when (not (contains? (get (:match-game-numbers @state) tournament-id) match-id))
-    (swap! state assoc-in [:match-game-numbers tournament-id match-id] (count (games tournament-id match-id))))
-  (= (get-in @state [:match-game-numbers tournament-id match-id]) 1))
-
 (defn importable-matches
   "Returns all matches that are ready to be imported into eBot."
   [tournament-id]
   (filter #(and (= (get % "status") "pending")
                 (get-in % ["opponents" 0 "participant"])
-                (get-in % ["opponents" 1 "participant"])
-                (single-game? tournament-id (get % "id")))
+                (get-in % ["opponents" 1 "participant"]))
           (matches tournament-id)))
 
 (defn stage-matches
