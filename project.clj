@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [org.clojure/data.json "1.0.0"]
                  [org.suskalo/discljord "0.2.5"]
+                 [cheshire "5.10.0"]
                  [clj-http "3.10.0"]
                  [clj-python/libpython-clj "1.46"]
                  [counterstrafe/clj-rcon "0.1.1"]

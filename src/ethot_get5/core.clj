@@ -128,7 +128,7 @@
 (defn export-game
   [tournament-id get5-match-id]
   (let [toornament-match-id (db/get5-to-toornament-match-id get5-match-id)
-        match-result (db/get-match-result)]
+        match-result (db/get-match-result get5-match-id)]
     (doseq [game-result match-result]
       (toornament/complete-game tournament-id
                                 toornament-match-id
@@ -140,7 +140,7 @@
   "waits for the channel to recieve a map of inforamiotn about the caller
   or nil from timeout and will the find the game to delay exporting and make sure"
   [tournament-id id time-to-wait chan]
-  (println (str "testing chan passed to await-game-status" chan))
+  (println (str "testing chan passed to await-game-status " chan))
   (async/go
     (async/alt!
       (async/timeout time-to-wait) ([x]
