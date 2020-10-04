@@ -340,9 +340,9 @@
                                                where id = ?" get5-match-id]
                                  {:builder-fn rs/as-unqualified-lower-maps})
         max-maps (:max_maps match)]
-    (for [x (range 1 (+ max-maps 1))
+    (for [x (range 0 max-maps)
           :let [map-stat (get-map-stat get5-match-id x)]
           :when (some? map-stat)]
-      {:game-number x
+      {:game-number (inc x)
        :team1-score (:team1_score map-stat)
        :team2-score (:team2_score map-stat)})))

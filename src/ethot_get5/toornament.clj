@@ -133,9 +133,8 @@
       (hclient/patch url {:headers {:X-Api-Key toornament-api-key
                                     :Authorization (oauth "result")}
                           :form-params {:status "completed"
-                                        :opponents [
-                                          {:number 1
-                                           :score team1-score}
-                                          {:number 2
-                                           :score team2-score}]}
+                                        :opponents [{:number 1
+                                                     :score team1-score}
+                                                    {:number 2
+                                                     :score team2-score}]}
                           :content-type :json}))))
