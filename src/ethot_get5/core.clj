@@ -196,9 +196,9 @@
         (println "Running")
         (doseq [match (unimported-matches tournament-id)]
           (let [match-id (get match "id")
-                games (toornament/games tournament-id match-id)
+                max-maps (count (toornament/games tournament-id match-id))
                 server (get-available-server)
-                [get5-match-id match-api-key] (db/import-match match (count games) server)
+                [get5-match-id match-api-key] (db/import-match match max-maps server)
                 match-config-url (create-match-config-url get5-match-id)
                 team1-id (get-in match ["opponents" 0 "participant" "id"])
                 team2-id (get-in match ["opponents" 1 "participant" "id"])
