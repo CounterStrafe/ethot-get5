@@ -20,4 +20,4 @@
           api-key "test-key"]
       (is (server-available? server))
       (is (not (server-available? bad-server)))
-      (is (.contains (send-to-server "notaurl" api-key server) "command \"get5_loadmatch_url notaurl\"")))))
+      (is (.contains (send-to-server "notaurl" api-key server) "command \"get5_loadmatch_url \"notaurl\"\"")))))

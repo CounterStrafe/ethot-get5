@@ -20,6 +20,7 @@ services:
     restart: always
     volumes:
       - /opt/docker/get5-web/mysql:/var/lib/mysql
+      - ./ethot-db/ethot.sql:/docker-entrypoint-initdb.d/ethot.sql
     ports:
       - "3306:3306"
     expose:
