@@ -33,6 +33,6 @@
   "Executes the get5_loadmatch_url RCON command on the server
    with the match config URL"
   [match-config-url match-api-key server]
-  (let [resp (exec (str "get5_loadmatch_url " match-config-url) server)]
+  (let [resp (exec (str "get5_loadmatch_url \"" match-config-url "\"") server)]
     (exec (str "get5_web_api_key " match-api-key) server)
     resp))
