@@ -145,7 +145,8 @@
     (testing "import-match, get-servers-not-in-use, match-imported?, and match-on-server?"
       (import-team team1)
       (import-team team2)
-      (let [server-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into
+      (let [user-id 1
+            server-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into
                                                                        game_server (ip_string)
                                                                        values (?)" server-ip]
                                                          {:return-keys true}))
@@ -153,7 +154,7 @@
         (is (= server-id (:id (first (get-servers-not-in-use)))))
         (is (false? (match-imported? (get match "id"))))
         (is (false? (match-on-server? server-id)))
-        (import-match match max-maps {:id server-id :plugin_version plugin-version})
+        (import-match match user-id max-maps {:id server-id :plugin_version plugin-version})
         (let [ethot-match (jdbc/execute-one! ethot-ds ["select * from `match`
                                                         where toornament_id = ?"
                                                        (get match "id")]

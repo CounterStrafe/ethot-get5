@@ -113,11 +113,19 @@
                                     team-id]
                        {:builder-fn rs/as-unqualified-lower-maps})))
 
+(defn create-user
+  "Creates an admin user in get5-web and returns its ID."
+  []
+  (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into user (name, admin)
+                                                   values (?, ?)"
+                                                  "ethot-get5" true]
+                                     {:return-keys true})))
+
 (defn import-match
   "Takes a Toornament match, the max number of maps to be played,
    and a get5 server DB row. Adds the match to the get5-web and ethot match tables,
    and sets the server in_use column in the get5 game_server table."
-  [match max-maps server]
+  [match user-id max-maps server]
   (let [server-id (:id server)
         plugin-version (:plugin_version server)
         team1-toornament-id (get-in match ["opponents" 0 "participant" "id"])
@@ -127,10 +135,12 @@
         team1-name (team-name team1-id)
         team2-name (team-name team2-id)
         api-key (gen-api-key)
-        get5-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into `match` (server_id,
+        get5-id (:GENERATED_KEY (jdbc/execute-one! get5-web-ds ["insert into `match` (user_id,
+                                                                                      server_id,
                                                                                       team1_id,
                                                                                       team2_id,
                                                                                       plugin_version,
+                                                                                      cancelled,
                                                                                       max_maps,
                                                                                       skip_veto,
                                                                                       veto_mappool,
@@ -139,11 +149,13 @@
                                                                                       team2_score,
                                                                                       team1_string,
                                                                                       team2_string)
-                                                                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                                                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                                                user-id
                                                                 server-id
                                                                 team1-id
                                                                 team2-id
                                                                 plugin-version
+                                                                false
                                                                 max-maps
                                                                 0
                                                                 (str/join " " map-pool)
